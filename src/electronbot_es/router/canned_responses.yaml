@@ -86,8 +86,8 @@ canned:
 
   - id: please
     patterns:
-      - "^por favor\\b"
-      - "\\bporfa\\b"
+      - "^por favor[\\.\\!\\?]*$"
+      - "^porfa[\\.\\!\\?]*$"
     variants:
       - "¡Claro que sí, parce! Dime."
       - "Listo, cuéntame qué necesitas."

@@ -257,7 +257,9 @@ class VoiceSessionOrchestrator:
                     stt_final=int(metrics.stt_final_ms or 0),
                     llm_first_token=int(metrics.llm_first_token_ms or 0),
                     tts_first_chunk=int(metrics.tts_first_chunk_ms or 0),
-                    wake_to_first_audio=int(metrics.tts_first_chunk_ms or 0),
+                    wake_to_first_audio=int(
+                        max(0, (metrics.tts_first_chunk_ms or 0) - (metrics.stt_final_ms or 0))
+                    ),
                 ),
                 tokens=TurnTokens.model_validate(
                     {"in": metrics.llm_tokens_in, "out": metrics.llm_tokens_out}
@@ -324,7 +326,9 @@ class VoiceSessionOrchestrator:
             latencies_ms=TurnLatencies(
                 stt_final=int(metrics.stt_final_ms or 0),
                 tts_first_chunk=int(metrics.tts_first_chunk_ms or 0),
-                wake_to_first_audio=int(metrics.tts_first_chunk_ms or 0),
+                wake_to_first_audio=int(
+                    max(0, (metrics.tts_first_chunk_ms or 0) - (metrics.stt_final_ms or 0))
+                ),
             ),
             providers=TurnProviders(
                 stt=self._providers.stt, llm=None, tts="canned"
@@ -389,7 +393,9 @@ class VoiceSessionOrchestrator:
             latencies_ms=TurnLatencies(
                 stt_final=int(metrics.stt_final_ms or 0),
                 tts_first_chunk=int(metrics.tts_first_chunk_ms or 0),
-                wake_to_first_audio=int(metrics.tts_first_chunk_ms or 0),
+                wake_to_first_audio=int(
+                    max(0, (metrics.tts_first_chunk_ms or 0) - (metrics.stt_final_ms or 0))
+                ),
             ),
             providers=TurnProviders(
                 stt=self._providers.stt, llm=None, tts=self._providers.tts

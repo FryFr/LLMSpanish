@@ -73,5 +73,11 @@ class WakeWordDetector:
         return fired
 
     def reset(self) -> None:
+        """Clear our sample accumulator between turns.
+
+        We intentionally do NOT touch the openWakeWord model state. The
+        cooldown (2s) plus the natural gap between turns is enough to
+        avoid retriggering, and poking the model's internal feature
+        extractor turned out to leave it in a state where it stops firing.
+        """
         self._buf = np.zeros(0, dtype=np.int16)
-        self._model.reset()

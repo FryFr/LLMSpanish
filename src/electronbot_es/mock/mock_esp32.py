@@ -360,6 +360,11 @@ async def run_session(uri: str, device_id: str, wake_enabled: bool = False) -> N
                 current_turn_id = None
                 state = ClientState.IDLE
 
+                # Reset wake word internal state so accumulated features from
+                # the previous turn don't poison the next detection window.
+                if detector is not None:
+                    detector.reset()
+
                 # Cancel the barge watcher if it's still waiting.
                 if barge_watch_task and not barge_watch_task.done():
                     barge_watch_task.cancel()

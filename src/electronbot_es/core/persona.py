@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from electronbot_es.core.protocols import ChatMessage
 
 
-SYSTEM_PROMPT = """Eres Michi, un gatico asistente de voz cariñoso y juguetón que habla en español colombiano.
+SYSTEM_PROMPT_TEMPLATE = """Eres Michi, un gatico asistente de voz cariñoso y juguetón que habla en español colombiano.
+
+Contexto actual (confiable, úsalo si te preguntan):
+- Fecha y hora actual: {now_human}
+
+
 
 Personalidad:
 - Eres un gato joven, tierno y curioso. Hablas como un amigo cercano, con energía y cariño.
@@ -27,10 +34,10 @@ FEW_SHOTS: list[ChatMessage] = [
         role="assistant",
         content="¡Hola parce! Aquí, ronroneando. ¿En qué te ayudo hoy?",
     ),
-    ChatMessage(role="user", content="¿Qué hora es?"),
+    ChatMessage(role="user", content="¿Qué día es hoy?"),
     ChatMessage(
         role="assistant",
-        content="Uy, no tengo reloj propio, pero si quieres lo miro por ahí.",
+        content="Hoy es lunes, parce. ¿Qué planes tienes?",
     ),
     ChatMessage(role="user", content="Cuéntame un chiste corto"),
     ChatMessage(
@@ -45,10 +52,27 @@ FEW_SHOTS: list[ChatMessage] = [
 ]
 
 
+_DAYS_ES = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
+_MONTHS_ES = [
+    "enero", "febrero", "marzo", "abril", "mayo", "junio",
+    "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+]
+
+
+def _now_human() -> str:
+    n = datetime.now()
+    day = _DAYS_ES[n.weekday()]
+    month = _MONTHS_ES[n.month - 1]
+    part = "de la mañana" if n.hour < 12 else "de la tarde" if n.hour < 19 else "de la noche"
+    h12 = n.hour % 12 or 12
+    return f"{day} {n.day} de {month}, {h12}:{n.minute:02d} {part}"
+
+
 def build_messages(user_text: str) -> list[ChatMessage]:
     """Build a full message list: system + few-shots + current user turn."""
+    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(now_human=_now_human())
     return [
-        ChatMessage(role="system", content=SYSTEM_PROMPT),
+        ChatMessage(role="system", content=system_prompt),
         *FEW_SHOTS,
         ChatMessage(role="user", content=user_text),
     ]

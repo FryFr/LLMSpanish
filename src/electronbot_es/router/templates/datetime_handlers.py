@@ -53,10 +53,9 @@ def _build_date(_: re.Match) -> str:
 TIME_TEMPLATE = TemplateEntry(
     id="time_now",
     patterns=(
-        re.compile(r"\bque hora\b", re.IGNORECASE),
-        re.compile(r"\btienes la hora\b", re.IGNORECASE),
-        re.compile(r"\bme dices la hora\b", re.IGNORECASE),
-        re.compile(r"\bdime la hora\b", re.IGNORECASE),
+        re.compile(r"\bque hora[s]?\b", re.IGNORECASE),
+        re.compile(r"\bhora es\b", re.IGNORECASE),
+        re.compile(r"(?<!a )\bla hora\b(?! de)", re.IGNORECASE),
     ),
     build=_build_time,
 )

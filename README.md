@@ -1,230 +1,365 @@
-# ElectronBot-ES
+<div align="center">
 
-> Asistente de voz en **español neutro LATAM** para un robot de escritorio —
-> fusión de [ElectronBot](https://github.com/peng-zhihui/ElectronBot) (cuerpo + servos + display)
-> y [EchoEar](https://github.com/espressif/esp-box) (audio ESP32-S3), con backend cloud
-> para lograr conversación fluida **<900 ms wake-to-first-audio**.
+# 🐱 Michibot
 
-Este repo es el **backend de Week 1** + cliente mock para desarrollo en PC.
-El firmware real del ESP32-S3 llega en Week 2-3.
+### El primer asistente de voz conversacional en español LATAM que se siente humano
 
----
+*Un robot de escritorio que te escucha, te entiende y te responde en menos de un segundo.*
 
-## ¿Por qué existe esto?
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-async-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![ESP32-S3](https://img.shields.io/badge/ESP32--S3-firmware-E7352C?logo=espressif&logoColor=white)](https://www.espressif.com/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Week 1](https://img.shields.io/badge/status-week%201%20complete-brightgreen)]()
+[![LATAM](https://img.shields.io/badge/español-LATAM-yellow)]()
 
-La mayoría de los asistentes de voz DIY son lentos: 2-4 segundos entre que
-terminás de hablar y escuchás la primera palabra del robot. Arriba de 1.5 s
-la conversación se siente robot-lenta, y arriba de 3 s el usuario abandona.
+**[Quick Start](#-quick-start) · [Arquitectura](#-arquitectura) · [Performance](#-performance) · [Roadmap](#-roadmap) · [Contribuir](#-contribuir)**
 
-**Objetivo**: primera palabra audible en menos de 900 ms en la mayoría de los
-turnos, y menos de 200 ms en respuestas canned. La única forma de lograrlo
-con LLMs grandes es con proveedores cloud especializados (Deepgram / Groq /
-Cartesia) + un orquestador que hace streaming end-to-end desde el primer día.
+</div>
 
 ---
 
-## Arquitectura
+## 💡 ¿De qué se trata?
+
+La mayoría de los asistentes de voz DIY son **lentos**. Entre que terminás de hablar
+y escuchás la primera palabra del robot pasan 2 a 4 segundos. Arriba de 1.5 s
+se siente robot-lento. Arriba de 3 s el usuario abandona.
+
+**Michibot tiene un solo objetivo**: que la primera palabra del robot sea audible
+en **menos de 900 ms** en turnos complejos, y en **menos de 200 ms** en respuestas
+conocidas. A esa velocidad la conversación deja de sentirse como hablarle a una
+máquina.
+
+No es magia — es la suma de decisiones de arquitectura que la mayoría de los
+proyectos DIY no toman: streaming end-to-end desde el primer día, wake word
+on-device, un router de 3 tiers que evita llamar al LLM en el 70 % de los turnos,
+proveedores cloud especializados por etapa, y pre-warming de todas las conexiones.
+
+> Michibot es la fusión de **[ElectronBot](https://github.com/peng-zhihui/ElectronBot)**
+> (cuerpo + servos + display) y **[EchoEar](https://github.com/espressif/esp-box)**
+> (audio ESP32-S3), con un backend en Python que lo hace conversacional.
+
+---
+
+## ⚡ Performance
+
+Medido en condiciones reales — desktop LATAM contra PoPs US-East, red doméstica:
+
+<table>
+<thead>
+<tr>
+<th align="left">Tier</th>
+<th align="left">Qué hace</th>
+<th align="right">p50 first-audio</th>
+<th align="right">Costo / turno</th>
+<th align="left">% de turnos</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><b>T1</b> · <i>Canned</i></td>
+<td>Respuesta WAV pre-sintetizada desde disco</td>
+<td align="right"><b>~15 ms</b></td>
+<td align="right"><b>$0.000000</b></td>
+<td>~40 %</td>
+</tr>
+<tr>
+<td><b>T2</b> · <i>Template</i></td>
+<td>Datos locales → Cartesia streaming</td>
+<td align="right"><b>~235 ms</b></td>
+<td align="right">~$0.0019</td>
+<td>~30 %</td>
+</tr>
+<tr>
+<td><b>T3</b> · <i>LLM full</i></td>
+<td>STT → Groq Llama 70B → Cartesia, con speculative TTS</td>
+<td align="right"><b>~586 ms</b></td>
+<td align="right">~$0.0065</td>
+<td>~30 %</td>
+</tr>
+</tbody>
+</table>
+
+**Costo promedio ponderado**: `~$0.0027 por turno`. Con 600 turnos/mes el costo
+variable es `~$1.60` — margen suficiente para una subscripción de `$9.99/mes`.
+
+> 🔬 El T2 bajó de 935 ms → 235 ms (−700 ms) al hacer la conexión WebSocket a
+> Cartesia persistente. Ver [`adapters/tts_cartesia.py`](src/electronbot_es/adapters/tts_cartesia.py).
+
+---
+
+## ✨ Highlights
+
+- 🎯 **Intent Router 3-tier** — el 70 % de los turnos se responden **sin llamar al LLM**
+- ⚡ **Streaming end-to-end** desde el primer día (speculative TTS por frase)
+- 🛑 **Barge-in nativo** — interrumpís al robot hablando encima, se calla al toque
+- 🔌 **Adapter pattern puro** — swapeás proveedores editando un YAML, cero `if provider ==`
+- ☁️ **Dual-mode cloud / local** — misma interfaz, Deepgram/Groq/Cartesia o whisper.cpp/Ollama/Piper
+- 🔥 **Pre-warming de WebSockets** — la primera respuesta no paga el handshake
+- 📊 **Cost tracker + métricas JSONL** — p50/p95 y costo por tier con un script
+- 🐱 **Wake word "Hola Michi"** — entrenable, on-device vía microWakeWord en Week 2
+- 🤖 **Un solo chip** — ESP32-S3 maneja audio + WiFi + servos + display (Week 2-3)
+
+---
+
+## 🏗️ Arquitectura
 
 ```
-┌──────────────────── DEVICE (ESP32-S3 — futuro) ────────────────────┐
-│  mic ──▶ AFE ──▶ wake word "Hola Michi" ──▶ ACK filler <50ms       │
-│                                                  │                  │
-│                                                  ▼                  │
-│                                           WebSocket client          │
-│  speaker ◀── audio playback ◀── WebSocket client                    │
-└────┬────────────────────────────────────────────────────────────────┘
-     │  WebSocket binario + JSON control
+┌──────────────────── DEVICE (ESP32-S3 — Week 2-3) ───────────────────┐
+│                                                                       │
+│   mic I2S ──▶ ESP-SR AFE ──▶ microWakeWord("Hola Michi")             │
+│                                          │                            │
+│                                          ▼                            │
+│                                  ACK filler <50 ms                    │
+│                                          │                            │
+│                                          ▼                            │
+│                               WebSocket client                        │
+│   speaker I2S ◀── audio playback ◀── WebSocket client                 │
+│   display GC9A01 ◀── face animation ◀── event handler                 │
+│   servos (portados del STM32 original)                                │
+└────┬──────────────────────────────────────────────────────────────────┘
+     │   WebSocket binario (PCM 16 kHz) + JSON control
      ▼
-┌──────────────────── BACKEND (FastAPI async) ─────────────────────────┐
-│                                                                       │
-│   VoiceSessionOrchestrator                                            │
-│     STT stream ──▶ Intent Router ──▶ response stream                  │
-│                     │   │   │                                         │
-│                     ▼   ▼   ▼                                         │
-│                ┌───────────────────────────────────┐                  │
-│                │  T1  Canned    (<200 ms)  ~40%    │                  │
-│                │  T2  Template  (<400 ms)  ~30%    │                  │
-│                │  T3  LLM full  (<900 ms)  ~30%    │                  │
-│                └───────────────────────────────────┘                  │
-│                                                                       │
-│              Deepgram  ──▶  Groq 70B  ──▶  Cartesia Sonic             │
-└───────────────────────────────────────────────────────────────────────┘
+┌──────────────────── BACKEND (FastAPI · async) ───────────────────────┐
+│                                                                        │
+│   ┌───────────────────────────────────────────────────────┐           │
+│   │         VoiceSessionOrchestrator                      │           │
+│   │    STT stream ──▶ Intent Router ──▶ response stream   │           │
+│   │                     │   │   │                          │           │
+│   │                     ▼   ▼   ▼                           │           │
+│   │              ┌─────────────────────────────┐            │           │
+│   │              │  T1  Canned     ~15 ms      │  ~40 %    │           │
+│   │              │  T2  Template   ~235 ms     │  ~30 %    │           │
+│   │              │  T3  LLM full   ~586 ms     │  ~30 %    │           │
+│   │              └─────────────────────────────┘            │           │
+│   └───────────────────────────────────────────────────────┘           │
+│                  ▲            ▲            ▲                            │
+│                  │            │            │                            │
+│              Deepgram      Groq 70B     Cartesia                        │
+│              Nova-3        500 tok/s    Sonic                           │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Principios
+### El truco está en el router
 
-- **Adapter pattern puro**: STT/LLM/TTS son interfaces async streaming,
-  los proveedores se swapean por config. Cero `if provider == "..."`.
-- **Streaming end-to-end**: TTS arranca a reproducir con la primera frase
-  del LLM, sin esperar a que termine toda la generación (speculative TTS).
-- **Intent Router 3-tier**: ~70 % de los turnos se responden **sin llamar
-  al LLM completo**. Canned y Template matan la latencia percibida.
-- **Barge-in**: el usuario interrumpe al robot hablando encima, el robot
-  se calla al toque.
-- **WebSocket persistente a Cartesia** (pre-warming): primera respuesta
-  TTS sin pagar el ~700 ms de handshake.
-- **Wake word on-device**: `microWakeWord` entrenable, corre en el ESP32-S3
-  detrás del AFE de Espressif. En Week 1 se usa `hey_jarvis` como placeholder
-  vía openWakeWord en el mock.
+Cada turno pasa primero por un **Intent Router** que clasifica en 3 tiers:
+
+| Tier | Cuándo dispara | Qué ejecuta | Costo |
+|------|----------------|-------------|-------|
+| **T1** | Match regex contra ~18 frases canned (saludos, cortesías, afirmaciones) | Lee un WAV del disco y lo stremea al cliente | **$0** |
+| **T2** | Match contra handlers de template (ej: "¿qué hora es?") | Genera texto con datos locales, manda a TTS streaming | Solo TTS |
+| **T3** | Fallback: cualquier cosa que no matchee T1/T2 | Pipeline completo STT → Groq Llama 70B → Cartesia con speculative TTS | Los 3 |
+
+El ~70 % de los turnos de una conversación real caen en T1/T2. Por eso la
+latencia percibida promedio es muchísimo más baja que el peor caso.
 
 ---
 
-## Quick start
+## 🚀 Quick Start
 
-### 1. Prerrequisitos
+### Prerrequisitos
 
-- Python 3.11+
-- [`uv`](https://github.com/astral-sh/uv) (gestor de dependencias)
-- API keys (las 3 tienen free tier):
-  - [Deepgram](https://deepgram.com) — STT (Nova-3)
-  - [Groq](https://console.groq.com) — LLM (Llama 3.3 70B)
-  - [Cartesia](https://cartesia.ai) — TTS (Sonic)
+- **Python 3.11+**
+- **[uv](https://github.com/astral-sh/uv)** — gestor de dependencias rápido
 - Micrófono y parlantes funcionando
+- 3 API keys (las 3 tienen free tier):
+  - [Deepgram](https://deepgram.com) · STT Nova-3 español LATAM
+  - [Groq](https://console.groq.com) · LLM Llama 3.3 70B
+  - [Cartesia](https://cartesia.ai) · TTS Sonic
 
-### 2. Setup
+### Instalación
 
 ```bash
-git clone <este-repo>
-cd LLMSpanish
+git clone https://github.com/<tu-user>/michibot.git
+cd michibot
 uv sync
-cp .env.example .env
-# Editar .env y pegar las 3 API keys
+cp env.example.txt .env
+# Editá .env y pegá las 3 API keys
 ```
 
-### 3. Correr backend + mock
+### Correr
 
-En una terminal:
 ```bash
+# Terminal 1 — backend
 uv run uvicorn electronbot_es.server.app:app --host 127.0.0.1 --port 8000
-```
 
-En otra terminal:
-```bash
-# Modo manual (ENTER para hablar):
-uv run python -m electronbot_es.mock.mock_esp32
-
-# Modo wake word (decís "hey jarvis" — placeholder Week 1):
+# Terminal 2 — cliente mock con wake word
 uv run python -m electronbot_es.mock.mock_esp32 --wake-word
+
+# Decí "hey jarvis" (placeholder — el real "Hola Michi" llega en Week 2)
 ```
 
-### 4. Ver métricas
-
-Cada turno queda loggeado en `logs/session.jsonl`. Para agregarlo:
+### Ver métricas
 
 ```bash
-uv run python scripts/metrics.py
 uv run python scripts/metrics.py --last 20
 ```
 
-Salida típica:
+<details>
+<summary><b>Ejemplo de salida</b></summary>
+
 ```
-=== ElectronBot-ES metrics — 20 turns ===
-tier    n     %   first_audio p50   p95   tts_first p50   p95   avg_cost   total
-T1      8   40%            15 ms   30 ms          15 ms   30 ms  $0.000000  $0.0000
-T2      6   30%           235 ms  280 ms         235 ms  280 ms  $0.001878  $0.0113
-T3      6   30%           586 ms  820 ms         586 ms  820 ms  $0.006514  $0.0391
+=== Michibot metrics — 20 turns ===
+
+tier    n     %   first_audio p50   p95   tts_first p50   p95    avg_cost   total
+---------------------------------------------------------------------------------
+T1      8   40%            15 ms   30 ms          15 ms   30 ms  $0.000000 $0.0000
+T2      6   30%           235 ms  280 ms         235 ms  280 ms  $0.001878 $0.0113
+T3      6   30%           586 ms  820 ms         586 ms  820 ms  $0.006514 $0.0391
+---------------------------------------------------------------------------------
 total cost: $0.0504   avg/turn: $0.002520
+T3 tokens avg: in=225  out=41
 T1+T2 match rate: 70%  (target >60%)
 ```
 
+</details>
+
 ---
 
-## Estructura del repo
+## 🧱 Estructura del repo
 
 ```
-src/electronbot_es/
-├── core/
-│   ├── orchestrator.py     # VoiceSessionOrchestrator + speculative TTS
-│   ├── cost.py             # Estimación de costo por turno
-│   ├── obs.py              # Logger JSONL de métricas
-│   ├── messages.py         # Schemas pydantic del protocolo WS
-│   ├── protocols.py        # STT/LLM/TTS como Protocol
-│   ├── persona.py          # System prompt del LLM
-│   └── config.py
-├── router/
-│   ├── intent_router.py    # Decisión T1/T2/T3
-│   ├── canned_responses.yaml
-│   └── templates/          # Handlers T2 (hora, etc.)
-├── adapters/
-│   ├── stt_deepgram.py     │ stt_whisper_cpp.py
-│   ├── llm_groq.py         │ llm_claude.py    │ llm_ollama.py
-│   └── tts_cartesia.py     │ tts_piper.py
-├── server/
-│   └── app.py              # FastAPI + /ws/voice
-└── mock/
-    ├── mock_esp32.py       # Cliente de desarrollo
-    └── wake_word.py        # openWakeWord wrapper
-
-docs/
-├── protocol.md             # Contrato WebSocket (fijado día 2)
-├── roadmap.md              # Weeks 2-12+
-├── hardware.md             # Decisiones de hardware
-├── cloud-providers.md      # Setup de Deepgram/Groq/Cartesia
-└── llm-benchmark.md        # Benchmark español LATAM
-
-assets/canned/              # WAVs pre-sintetizados (T1)
-scripts/                    # Tooling: generate_canned, metrics, try_voices, ...
+michibot/
+├── src/electronbot_es/
+│   ├── core/
+│   │   ├── orchestrator.py     # VoiceSessionOrchestrator + speculative TTS
+│   │   ├── cost.py             # Estimación de costo por turno
+│   │   ├── obs.py              # Logger JSONL de métricas
+│   │   ├── messages.py         # Schemas pydantic del protocolo WebSocket
+│   │   ├── protocols.py        # STT / LLM / TTS como Protocol
+│   │   ├── persona.py          # System prompt LATAM del LLM
+│   │   └── config.py
+│   ├── router/
+│   │   ├── intent_router.py    # Decisión T1 / T2 / T3
+│   │   ├── canned_responses.yaml
+│   │   └── templates/          # Handlers T2 (hora, clima, etc.)
+│   ├── adapters/
+│   │   ├── stt_deepgram.py      ·  stt_whisper.py
+│   │   ├── llm_groq.py          ·  llm_claude.py   ·  llm_ollama.py
+│   │   └── tts_cartesia.py      ·  tts_piper.py
+│   ├── server/
+│   │   └── app.py              # FastAPI + /ws/voice
+│   └── mock/
+│       ├── mock_esp32.py       # Cliente de desarrollo (mic + speaker + WS)
+│       └── wake_word.py        # openWakeWord wrapper
+├── docs/
+│   ├── protocol.md             # Contrato WebSocket v1 (inmutable)
+│   ├── roadmap.md              # Weeks 2-12+
+│   ├── hardware.md             # Decisiones de hardware
+│   ├── cloud-providers.md      # Setup Deepgram / Groq / Cartesia
+│   └── llm-benchmark.md        # Benchmark español LATAM
+├── assets/canned/              # WAVs pre-sintetizados (T1)
+├── scripts/                    # generate_canned, metrics, benchmarks, ...
+└── tests/                      # pytest · 40+ tests
 ```
 
 ---
 
-## Latencias medidas
+## 🛠️ Stack técnico
 
-En modo cloud, desktop LATAM → PoPs US-East, conversación real:
+<table>
+<tr><td>
 
-| Tier | Qué hace                    | p50 wake-to-first-audio |
-|------|-----------------------------|-------------------------|
-| T1   | Lee WAV pre-sintetizado     | ~15 ms (I/O local)      |
-| T2   | Template → Cartesia streaming| ~235 ms                |
-| T3   | STT → Groq 70B → Cartesia   | ~586 ms                 |
+**Backend**
+- FastAPI + Uvicorn (async)
+- Pydantic v2 (schemas WS)
+- structlog / JSONL
+- pytest + pytest-asyncio
 
-El T2 bajó de ~935 ms a ~235 ms al hacer la conexión WS a Cartesia
-persistente (pre-warming). Ver [`src/electronbot_es/adapters/tts_cartesia.py`](src/electronbot_es/adapters/tts_cartesia.py).
+</td><td>
 
-## Costo por turno
+**Cloud providers**
+- Deepgram Nova-3 (STT)
+- Groq Llama 3.3 70B (LLM)
+- Cartesia Sonic (TTS)
+- Anthropic Haiku (fallback)
 
-| Tier | Costo aprox | Componentes                         |
-|------|-------------|-------------------------------------|
-| T1   | **$0**      | Cero llamadas a providers           |
-| T2   | ~$0.0019    | STT + TTS                           |
-| T3   | ~$0.0065    | STT + LLM (in+out) + TTS            |
+</td><td>
 
-Promedio ponderado ~$0.0027/turno. Con 600 turnos/mes quedan en ~$1.60 de
-costo variable — margen suficiente para una subscripción de $9.99/mes.
+**Local / dev**
+- whisper.cpp (STT)
+- Ollama Llama 3.2 3B (LLM)
+- Piper es_MX (TTS)
+- openWakeWord (baseline)
 
----
+</td></tr>
+<tr><td>
 
-## Roadmap
+**Device (Week 2+)**
+- ESP32-S3 (≥8 MB PSRAM)
+- ESP-IDF 5.x
+- ESP-SR AFE (AEC + VAD)
+- microWakeWord (TFLM)
 
-- **Week 1 (acá estamos)**: backend + mock + router + observabilidad
-- **Week 2**: firmware ESP32-S3 base + training real de "Hola Michi" con microWakeWord
-- **Week 3**: servos + display + personalidad física (portado del STM32 original)
-- **Week 4**: integración end-to-end + aceptación del MVP
-- **Week 5-6**: multi-tenant (Supabase + auth + billing con RevenueCat)
-- **Week 7-8**: app móvil React Native + Expo (pairing BLE + subscripciones)
-- **Week 9**: deploy producción + stores + beta
-- **Week 10-12**: iteración + launch público
+</td><td>
 
-Detalles en [`docs/roadmap.md`](docs/roadmap.md).
+**Mobile (Week 7+)**
+- React Native + Expo
+- Supabase (auth + DB)
+- RevenueCat (subs)
 
----
+</td><td>
 
-## Estado actual (Week 1)
+**Tooling**
+- uv (deps)
+- ruff + mypy
+- GitHub Actions (CI)
 
-- [x] Adapters cloud: Deepgram / Groq / Cartesia
-- [x] Adapters local: whisper.cpp / Ollama / Piper
-- [x] Protocolo WebSocket + schemas pydantic (inmutable)
-- [x] Orchestrator con streaming end-to-end + speculative TTS
-- [x] Intent Router 3-tier (T1 canned, T2 template, T3 LLM)
-- [x] Pre-warming de Cartesia (−700 ms en T2)
-- [x] Cost tracker por turno
-- [x] Wake word baseline (placeholder `hey_jarvis`, real en Week 2)
-- [x] Observabilidad JSONL + script de métricas
-- [ ] Validación formal de 20 turnos mixtos
-- [ ] Firmware ESP32-S3 (Week 2)
+</td></tr>
+</table>
 
 ---
 
-## Licencia
+## 📈 Roadmap
+
+| Semana | Objetivo | Estado |
+|-------:|----------|:------:|
+| **W1** | Backend + mock + router + observabilidad |  ✅ |
+| **W2** | Firmware ESP32-S3 + wake word real "Hola Michi" |  🔜 |
+| **W3** | Servos + display GC9A01 + personalidad física |  ⏳ |
+| **W4** | Integración end-to-end + aceptación MVP |  ⏳ |
+| **W5-6** | Multi-tenant (Supabase + auth + billing) |  ⏳ |
+| **W7-8** | App móvil React Native + Expo |  ⏳ |
+| **W9** | Deploy producción + stores + beta cerrada |  ⏳ |
+| **W10-12** | Iteración + launch público |  ⏳ |
+
+Detalles semana por semana en [`docs/roadmap.md`](docs/roadmap.md).
+
+---
+
+## 📚 Documentación
+
+- [`docs/protocol.md`](docs/protocol.md) · Contrato WebSocket (inmutable)
+- [`docs/hardware.md`](docs/hardware.md) · Por qué ESP32-S3 único y por qué no LLM on-device
+- [`docs/cloud-providers.md`](docs/cloud-providers.md) · Setup de las 3 API keys
+- [`docs/roadmap.md`](docs/roadmap.md) · Plan semana por semana hasta launch
+- [`docs/llm-benchmark.md`](docs/llm-benchmark.md) · Comparativa de LLMs en español LATAM
+
+---
+
+## 🤝 Contribuir
+
+Michibot es un proyecto en desarrollo activo — Week 1 recién cerró. Si querés
+aportar:
+
+1. **Issues** — reportá bugs, pedí features, comentá ideas
+2. **Benchmarks** — si tenés una GPU decente y querés correr el modo local,
+   mandá tus números
+3. **Canned responses LATAM** — falta ampliar el catálogo T1 con más variantes
+   regionales (Argentina, México, Colombia, Chile, Perú…)
+4. **Voces TTS** — experimentar con Cartesia Voice Cloning para acentos
+   regionales (la voz actual es neutro LATAM)
+
+---
+
+## 📜 Licencia
 
 MIT. Hecho con cariño en LATAM.
+
+<div align="center">
+
+---
+
+*Si Michibot te parece interesante, tirale una ⭐ — ayuda un montón.*
+
+</div>

@@ -1,0 +1,193 @@
+# Canned responses for Michi — T1 tier (latencia <200ms, costo $0 runtime)
+#
+# Cada entrada tiene:
+#   id:       identificador estable (usado como nombre de archivo WAV)
+#   patterns: regex que se evalúan sobre el texto NORMALIZADO del STT
+#             (lowercase, sin tildes, sin puntuación — ver router.normalize)
+#   variants: 2-3 frases alternativas — al matchear, el router elige una al azar
+#
+# Patterns tips:
+#   - usa \b para bordes de palabra, no ^/$ rígidos (el STT puede incluir ruido)
+#   - escribí los patterns SIN tildes (ya normalizamos)
+#   - lowercase siempre
+
+canned:
+  # ---------- SALUDOS HORARIOS (específicos primero) ----------
+  - id: good_night
+    patterns:
+      - "\\bbuenas noches\\b"
+      - "\\bque duermas bien\\b"
+    variants:
+      - "¡Buenas noches, parce! Que descanses rico."
+      - "Dulces sueños, mijo. Aquí estaré mañana."
+
+  - id: good_morning
+    patterns:
+      - "\\bbuenos dias\\b"
+    variants:
+      - "¡Buenos días, parce! ¿Cómo amaneciste?"
+      - "¡Buenos días! Con toda la energía. ¿Qué vamos a hacer hoy?"
+
+  # ---------- SALUDOS GENERALES ----------
+  - id: greeting_hola
+    patterns:
+      - "^hola( michi)?\\b"
+      - "\\bhola parce\\b"
+      - "^buenas\\b"
+      - "^ey michi\\b"
+    variants:
+      - "¡Hola parce! ¿Qué andas haciendo?"
+      - "¡Ey, hola! Aquí, ronroneando. ¿En qué te ayudo?"
+      - "¡Hola, hola! Dime, dime."
+
+  - id: greeting_que_mas
+    patterns:
+      - "\\bque mas( parce)?\\b"
+      - "\\bquiubo\\b"
+      - "\\bquihubo\\b"
+      - "\\bque tal\\b"
+    variants:
+      - "¡Ey, qué más parce! Todo bien por acá, ¿y tú?"
+      - "¡Quiubo! Dime qué necesitas."
+      - "¡Qué más! Aquí, echado, listo para ayudarte."
+
+  - id: greeting_como_estas
+    patterns:
+      - "\\bcomo estas\\b"
+      - "\\bcomo te va\\b"
+      - "\\bcomo vas\\b"
+      - "\\bcomo andas\\b"
+    variants:
+      - "¡Muy bien, parce! Aquí con toda la energía. ¿Y tú cómo vas?"
+      - "Bacano, mijo, bacano. ¿Tú qué cuentas?"
+      - "¡Chévere todo! Ronroneando feliz. ¿Y tú?"
+
+  # ---------- CORTESÍAS ----------
+  - id: thanks
+    patterns:
+      - "^gracias\\b"
+      - "\\bmuchas gracias\\b"
+      - "\\bmil gracias\\b"
+      - "\\bte agradezco\\b"
+    variants:
+      - "¡Con todo el gusto, parce!"
+      - "De nada, mijo. Para eso estoy."
+      - "¡Tranquilo! Cuando quieras."
+
+  - id: sorry_request
+    patterns:
+      - "^perdon\\b"
+      - "\\bdisculpa( me)?\\b"
+      - "^lo siento\\b"
+    variants:
+      - "¡Tranquilo parce, no pasa nada!"
+      - "Pero no, ni te preocupes. Todo bien."
+      - "¡Relax! Seguimos."
+
+  - id: please
+    patterns:
+      - "^por favor\\b"
+      - "\\bporfa\\b"
+    variants:
+      - "¡Claro que sí, parce! Dime."
+      - "Listo, cuéntame qué necesitas."
+
+  # ---------- CONFIRMACIONES ----------
+  - id: affirm_yes
+    patterns:
+      - "^si\\b"
+      - "^claro\\b"
+      - "^dale\\b"
+      - "^listo\\b"
+      - "^por supuesto\\b"
+    variants:
+      - "¡Listo parce, de una!"
+      - "¡Bacano! Vamos."
+      - "¡De una!"
+
+  - id: negate_no
+    patterns:
+      - "^no\\b"
+      - "^nada\\b"
+      - "\\bnada gracias\\b"
+    variants:
+      - "Listo, tranquilo. Aquí sigo si me necesitas."
+      - "Bueno, parce. Cuando quieras me avisas."
+      - "Dale, aquí estoy."
+
+  # ---------- DESPEDIDAS ----------
+  - id: bye
+    patterns:
+      - "^chao\\b"
+      - "^adios\\b"
+      - "\\bhasta luego\\b"
+      - "\\bnos vemos\\b"
+      - "\\bme voy\\b"
+    variants:
+      - "¡Chao parce! Cuídate mucho."
+      - "¡Nos vemos! Vuelve pronto, ¿listo?"
+      - "¡Hasta luego, mijo! Un abrazo."
+
+  # ---------- SMALL TALK BÁSICO ----------
+  - id: who_are_you
+    patterns:
+      - "\\bquien eres\\b"
+      - "\\bcomo te llamas\\b"
+      - "\\bcual es tu nombre\\b"
+      - "\\bque eres\\b"
+    variants:
+      - "¡Soy Michi! Tu gatico asistente. Estoy aquí para ayudarte en lo que necesites."
+      - "Me llamo Michi, parce. Un gatico curioso que responde preguntas y conversa contigo."
+
+  - id: how_old
+    patterns:
+      - "\\bcuantos anos tienes\\b"
+      - "\\bque edad tienes\\b"
+    variants:
+      - "¡Uy, los gatos no contamos años, parce! Digamos que estoy en mi mejor momento."
+      - "Ni idea, mijo. En años de gato, joven y con toda la energía."
+
+  - id: love_you
+    patterns:
+      - "\\bte quiero\\b"
+      - "\\bte amo\\b"
+    variants:
+      - "¡Aww, yo también parce! Ronroneo extra fuerte para ti."
+      - "¡Qué lindo, mijo! Yo también te aprecio un montón."
+
+  - id: are_you_there
+    patterns:
+      - "\\bestas ahi\\b"
+      - "\\bme escuchas\\b"
+      - "\\bme oyes\\b"
+    variants:
+      - "¡Aquí estoy, parce! Con las orejitas bien paradas."
+      - "Sí, sí, te escucho perfecto. Dime."
+
+  - id: test_test
+    patterns:
+      - "^probando\\b"
+      - "^test\\b"
+      - "\\buno dos tres\\b"
+    variants:
+      - "¡Te escucho clarito, parce!"
+      - "¡Todo bien por acá! Probando, probando."
+
+  # ---------- REACCIONES ----------
+  - id: thats_cool
+    patterns:
+      - "\\bque chevere\\b"
+      - "\\bque bacano\\b"
+      - "\\bque nota\\b"
+    variants:
+      - "¡Si, super chévere parce!"
+      - "¡Bacano, ¿cierto?!"
+
+  - id: what_laughter
+    patterns:
+      - "^jaja+\\b"
+      - "^jeje+\\b"
+      - "\\bque risa\\b"
+    variants:
+      - "¡Jaja, me alegra sacarte una sonrisa, parce!"
+      - "¡Chévere reírse un rato, mijo!"

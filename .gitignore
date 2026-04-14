@@ -1,0 +1,51 @@
+# Secrets — NUNCA commitear
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# uv
+.uv/
+
+# Modelos pesados (descargados, no versionados)
+models/
+*.bin
+*.gguf
+*.onnx
+*.tflite
+
+# Logs y outputs runtime
+logs/
+*.log
+*.jsonl
+
+# Audio generado en runtime (NO los canned commiteados)
+*.wav
+!assets/canned/*.wav
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# OS
+desktop.ini

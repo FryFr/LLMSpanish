@@ -172,6 +172,7 @@ async def run_session(
     silence_ms: int = 700,
     vad_aggressiveness: int = 2,
     start_delay_ms: int = 500,
+    wake_threshold: float = 0.4,
 ) -> None:
     print(f"Connecting to {uri} ...")
     async with websockets.connect(uri, max_size=None) as ws:
@@ -213,7 +214,7 @@ async def run_session(
         ack_filler_pcm: bytes = b""
         if wake_enabled:
             print("loading wake word detector (hey_jarvis placeholder for 'Hola Michi')...")
-            detector = WakeWordDetector(keyword="hey_jarvis", threshold=0.5)
+            detector = WakeWordDetector(keyword="hey_jarvis", threshold=wake_threshold)
             try:
                 import wave as _wave
                 with _wave.open("assets/canned/ack_filler_1.wav", "rb") as w:
@@ -458,6 +459,13 @@ def main() -> None:
         help="Lead-in (ms) tras el wake word donde no se evalúa el corte; "
         "ignora la cola del wake + el ack filler",
     )
+    p.add_argument(
+        "--wake-threshold",
+        type=float,
+        default=0.4,
+        help="Umbral del wake word (0..1). Más bajo = más sensible (detecta más "
+        "fácil, pero más disparos falsos). Default 0.4",
+    )
     args = p.parse_args()
     uri = f"ws://{args.host}:{args.port}/ws/voice"
     try:
@@ -469,6 +477,7 @@ def main() -> None:
                 silence_ms=args.silence_ms,
                 vad_aggressiveness=args.vad_aggressiveness,
                 start_delay_ms=args.start_delay_ms,
+                wake_threshold=args.wake_threshold,
             )
         )
     except KeyboardInterrupt:

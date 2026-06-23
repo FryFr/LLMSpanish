@@ -48,3 +48,14 @@ def test_tool_call_deltas_accumulate_into_one_request() -> None:
     assert out == [
         ToolCallRequest(id="call_1", name="buscar_web", arguments={"query": "clima hoy"})
     ]
+
+
+def test_tool_call_without_finish_reason_still_emits() -> None:
+    # Stream truncado (p.ej. max_tokens) sin finish_reason 'tool_calls':
+    # igual debe emitir el ToolCallRequest acumulado, no tragárselo.
+    tc = NS(id="call_9", function=NS(name="buscar_web", arguments='{"query":"x"}'))
+    chunks = [_chunk(tool_calls=[tc]), _chunk(finish_reason="length")]
+    out = _collect(_events_from_chunks(_aiter(chunks)))
+    assert out == [
+        ToolCallRequest(id="call_9", name="buscar_web", arguments={"query": "x"})
+    ]

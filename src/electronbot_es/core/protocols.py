@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import AsyncIterator, Literal, Protocol, runtime_checkable
+from typing import Any, AsyncIterator, Literal, Protocol, runtime_checkable
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,7 +56,7 @@ class TextDelta:
 class ToolCallRequest:
     id: str
     name: str
-    arguments: dict
+    arguments: dict[str, Any]
 
 
 @runtime_checkable

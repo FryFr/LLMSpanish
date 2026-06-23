@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import AsyncIterator
+from typing import Any, AsyncIterator, Union
 
 from groq import AsyncGroq
 
@@ -11,17 +11,31 @@ from electronbot_es.core.protocols import ChatMessage, TextDelta, ToolCallReques
 DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 
-async def _events_from_chunks(chunks):
+def _build_tool_request(tool_id, tool_name, tool_args) -> ToolCallRequest:
+    try:
+        args = json.loads(tool_args) if tool_args else {}
+    except json.JSONDecodeError:
+        args = {}
+    return ToolCallRequest(id=tool_id or "", name=tool_name or "", arguments=args)
+
+
+async def _events_from_chunks(
+    chunks,
+) -> AsyncIterator[Union[TextDelta, ToolCallRequest]]:
     """Convierte el stream de chunks de Groq en TextDelta / ToolCallRequest.
 
-    Acumula los deltas de tool_calls (id + name + fragmentos de arguments)
-    hasta finish_reason == 'tool_calls', parsea el JSON y emite un único
-    ToolCallRequest. Los chunks de texto se emiten como TextDelta.
+    Acumula los deltas de tool_calls (id + name + fragmentos de arguments) y
+    emite un único ToolCallRequest cuando llega finish_reason == 'tool_calls'.
+    Si el stream termina sin ese finish_reason pero veníamos acumulando una
+    tool call (p.ej. truncación por max_tokens o corte de red), igual la emite
+    best-effort para no tragarse el turno. Los chunks de texto se emiten como
+    TextDelta.
     """
     tool_id = None
     tool_name = None
     tool_args = ""
     saw_tool = False
+    emitted_tool = False
     async for chunk in chunks:
         if not chunk.choices:
             continue
@@ -42,13 +56,12 @@ async def _events_from_chunks(chunks):
                         tool_name = fn.name
                     if getattr(fn, "arguments", None):
                         tool_args += fn.arguments
-        if choice.finish_reason == "tool_calls" and saw_tool:
-            try:
-                args = json.loads(tool_args) if tool_args else {}
-            except json.JSONDecodeError:
-                args = {}
-            yield ToolCallRequest(id=tool_id or "", name=tool_name or "", arguments=args)
+        if choice.finish_reason == "tool_calls" and saw_tool and not emitted_tool:
+            yield _build_tool_request(tool_id, tool_name, tool_args)
+            emitted_tool = True
             return
+    if saw_tool and not emitted_tool:
+        yield _build_tool_request(tool_id, tool_name, tool_args)
 
 
 class GroqLLM:

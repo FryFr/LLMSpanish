@@ -57,13 +57,30 @@ def test_pause_mid_speech_resets_silence_run() -> None:
 
 
 def test_reset_returns_to_initial_state() -> None:
+    first = [True, True, True, False, False, False, False, False]
+    # Tras reset: 2 voz (bajo el umbral de 3) + 5 silencio. Si reset NO zeró
+    # _speech_frames, el 1er voiced saltaría a SPEAKING y el silencio cortaría.
+    after = [True, True, False, False, False, False, False]
     ep = SilenceEndpointer(
-        vad=FakeVAD([True, True, True, False, False, False, False, False]),
+        vad=FakeVAD(first + after),
         frame_ms=20, min_speech_ms=60, hangover_ms=100, max_utterance_ms=10000,
     )
-    results = [ep.process(FRAME) for _ in range(8)]
-    assert results[-1] is True
+    results = [ep.process(FRAME) for _ in first]
+    assert results[-1] is True  # el primer run sí corta
     ep.reset()
-    # Tras reset, frames de silencio no deben cortar de inmediato.
-    ep2_vad_silence = [ep.process(FRAME) for _ in range(5)]
-    assert ep2_vad_silence == [False] * 5
+    post = [ep.process(FRAME) for _ in after]
+    assert post == [False] * len(after)  # reset zeró el estado → no corta
+
+
+def test_wrong_size_frame_is_ignored() -> None:
+    # Un frame de tamaño inesperado se ignora: no corta y no avanza el estado.
+    ep = SilenceEndpointer(
+        vad=FakeVAD([True] * 10),  # el VAD diría "voz", pero no debe consumirse
+        frame_ms=20, min_speech_ms=60, hangover_ms=100, max_utterance_ms=10000,
+    )
+    bad = b"\x00" * 100  # 640 esperados → tamaño inválido
+    assert ep.process(bad) is False
+    # Tras varios frames inválidos, un frame válido recién empieza a contar voz:
+    # no debe haber saltado a SPEAKING por los inválidos.
+    for _ in range(5):
+        assert ep.process(bad) is False

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     deepgram_api_key: str | None = Field(default=None)
     cartesia_api_key: str | None = Field(default=None)
     elevenlabs_api_key: str | None = Field(default=None)
+    tavily_api_key: str | None = Field(default=None)
 
     voice_mode: str = "cloud"
     host: str = "0.0.0.0"

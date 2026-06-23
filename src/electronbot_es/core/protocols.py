@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import AsyncIterator, Literal, Protocol, runtime_checkable
+from typing import Any, AsyncIterator, Literal, Protocol, runtime_checkable
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,10 +47,29 @@ class ChatMessage:
     content: str
 
 
+@dataclass(frozen=True, slots=True)
+class TextDelta:
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCallRequest:
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
 @runtime_checkable
 class LLMAdapter(Protocol):
     async def generate_stream(
         self, messages: list[ChatMessage]
     ) -> AsyncIterator[str]: ...
+
+    async def aclose(self) -> None: ...
+
+
+@runtime_checkable
+class SearchAdapter(Protocol):
+    async def search(self, query: str) -> str: ...
 
     async def aclose(self) -> None: ...

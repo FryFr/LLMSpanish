@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import AsyncIterator, Awaitable, Callable, Optional
 
+from electronbot_es.core.agentic import SearchAugmentedResponder
 from electronbot_es.core.cost import TurnCost, cost_t1, cost_t2, cost_t3
 from electronbot_es.core.obs import log_turn
 from electronbot_es.core.messages import (
@@ -84,6 +85,7 @@ class VoiceSessionOrchestrator:
         send_binary: SendBinary,
         providers_label: TurnProviders,
         router: Optional[IntentRouter] = None,
+        responder: Optional[SearchAugmentedResponder] = None,
         tts_sample_rate: int = 16000,
         tts_source: str = "cartesia",
     ) -> None:
@@ -94,6 +96,7 @@ class VoiceSessionOrchestrator:
         self._send_binary = send_binary
         self._providers = providers_label
         self._router = router
+        self._responder = responder
         self._tts_sample_rate = tts_sample_rate
         self._tts_source = tts_source
 
@@ -176,8 +179,19 @@ class VoiceSessionOrchestrator:
 
             async def llm_producer() -> None:
                 buffer = ""
+                if self._responder is not None:
+                    async def on_search() -> None:
+                        await self._send_json(
+                            LlmStatus(turn_id=turn_id, state="searching").model_dump()
+                        )
+
+                    token_source = self._responder.respond_stream(
+                        built_messages, on_search=on_search
+                    )
+                else:
+                    token_source = self._llm.generate_stream(built_messages)
                 try:
-                    async for token in self._llm.generate_stream(built_messages):
+                    async for token in token_source:
                         if metrics.llm_first_token_ms is None:
                             metrics.llm_first_token_ms = metrics.elapsed_ms()
                         metrics.llm_tokens_out += len(token.split()) or 1

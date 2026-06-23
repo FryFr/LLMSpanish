@@ -1,17 +1,17 @@
 """MockESP32 — Python client simulating ESP32-S3 device over WS v1.
 
-Day 4 phase 2: manual keyboard barge-in.
-
 States:
-    IDLE       : waiting for user to press ENTER to start talking
-    RECORDING  : mic frames streamed as binary to the server
-    SPEAKING   : TTS playing back; pressing ENTER cancels the turn
+    IDLE       : waiting for a wake word or ENTER to start a turn
+    RECORDING  : mic frames streamed as binary to the server; recording
+                 auto-stops on silence via SilenceEndpointer (client-side
+                 VAD), simulating the ESP32-S3's on-device endpointing.
+                 On Windows, ENTER or SPACE can also force-stop recording.
+    SPEAKING   : TTS playing back; barge-in cancels the turn.
 
-Barge-in note: the mock uses a manual ENTER key as the cancel trigger.
-The real ESP32-S3 will use ESP-SR AFE (hardware AEC + VAD + noise
-suppression) to detect user voice over the TTS and fire tts.cancel
-automatically. Running VAD on a laptop condenser mic without AEC was
-unreliable — the real device has the right hardware for the job.
+Barge-in note: in this mock, barge-in is triggered by a manual keypress
+(Windows-only). The real ESP32-S3 will use ESP-SR AFE (hardware AEC + VAD)
+to detect user voice over TTS and fire tts.cancel automatically — AEC
+requires dedicated hardware, so that path is not emulated here.
 
 Usage:
     uv run python -m electronbot_es.mock.mock_esp32
@@ -34,6 +34,7 @@ import sounddevice as sd
 import websockets
 
 from electronbot_es.mock.wake_word import WakeWordDetector
+from electronbot_es.mock.endpointer import SilenceEndpointer
 
 try:
     import msvcrt  # Windows only
@@ -164,7 +165,13 @@ async def wait_key(prompt: str = "") -> None:
         await loop.run_in_executor(None, input)
 
 
-async def run_session(uri: str, device_id: str, wake_enabled: bool = False) -> None:
+async def run_session(
+    uri: str,
+    device_id: str,
+    wake_enabled: bool = False,
+    silence_ms: int = 700,
+    vad_aggressiveness: int = 2,
+) -> None:
     print(f"Connecting to {uri} ...")
     async with websockets.connect(uri, max_size=None) as ws:
         await ws.send(
@@ -213,6 +220,13 @@ async def run_session(uri: str, device_id: str, wake_enabled: bool = False) -> N
                     ack_filler_pcm = w.readframes(w.getnframes())
             except Exception as e:
                 print(f"[warn] ack filler load failed: {e}")
+
+        endpointer = SilenceEndpointer(
+            aggressiveness=vad_aggressiveness,
+            sample_rate=SAMPLE_RATE,
+            frame_ms=FRAME_MS,
+            hangover_ms=silence_ms,
+        )
 
         async def wait_for_wake() -> None:
             """Consume mic frames through the detector until it fires."""
@@ -268,22 +282,35 @@ async def run_session(uri: str, device_id: str, wake_enabled: bool = False) -> N
                     )
                 )
 
+                endpointer.reset()
+                speech_end_at: Optional[float] = None
+                print("[recording... auto-stops on silence]")
+
                 async def pump_mic():
+                    nonlocal speech_end_at
                     while mic.recording:
                         try:
                             frame = await asyncio.wait_for(
                                 mic.record_queue.get(), timeout=0.1
                             )
-                            await ws.send(frame)
                         except asyncio.TimeoutError:
+                            # Windows: ENTER/space fuerza el corte manual.
+                            if _HAS_MSVCRT and msvcrt.kbhit():
+                                ch = msvcrt.getwch()
+                                if ch in ("\r", "\n", " "):
+                                    mic.recording = False
                             continue
+                        await ws.send(frame)
+                        if endpointer.process(frame):
+                            speech_end_at = (time.perf_counter() - turn_start) * 1000
+                            mic.recording = False
+                            print(f"[{speech_end_at:7.0f}ms] endpoint (silence)")
 
                 pump_task = asyncio.create_task(pump_mic())
-
-                await wait_key("[recording... press ENTER to stop]\n")
-                mic.recording = False
-                state = ClientState.IDLE
                 await pump_task
+                state = ClientState.IDLE
+                if speech_end_at is None:
+                    speech_end_at = (time.perf_counter() - turn_start) * 1000
 
                 await ws.send(
                     json.dumps({"type": "audio.end", "turn_id": turn_id})
@@ -378,6 +405,11 @@ async def run_session(uri: str, device_id: str, wake_enabled: bool = False) -> N
                         pending_metrics
                         + ("  (barge-in)" if barge_in_fired.is_set() else "")
                     )
+                    if speech_end_at is not None and first_audio_at is not None:
+                        print(
+                            f"  client speech_end->first_audio: "
+                            f"{first_audio_at - speech_end_at:7.0f} ms"
+                        )
         except KeyboardInterrupt:
             print("\nbye.")
         finally:
@@ -399,10 +431,31 @@ def main() -> None:
         action="store_true",
         help='Enable wake word trigger ("hey jarvis" — Week 1 placeholder for "Hola Michi")',
     )
+    p.add_argument(
+        "--silence-ms",
+        type=int,
+        default=700,
+        help="Silencio continuo (ms) que corta la grabación (hangover del VAD)",
+    )
+    p.add_argument(
+        "--vad-aggressiveness",
+        type=int,
+        default=2,
+        choices=[0, 1, 2, 3],
+        help="Agresividad del webrtcvad (0=permisivo, 3=estricto)",
+    )
     args = p.parse_args()
     uri = f"ws://{args.host}:{args.port}/ws/voice"
     try:
-        asyncio.run(run_session(uri, args.device_id, wake_enabled=args.wake_word))
+        asyncio.run(
+            run_session(
+                uri,
+                args.device_id,
+                wake_enabled=args.wake_word,
+                silence_ms=args.silence_ms,
+                vad_aggressiveness=args.vad_aggressiveness,
+            )
+        )
     except KeyboardInterrupt:
         sys.exit(0)
 

@@ -47,6 +47,18 @@ class ChatMessage:
     content: str
 
 
+@dataclass(frozen=True, slots=True)
+class TextDelta:
+    text: str
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCallRequest:
+    id: str
+    name: str
+    arguments: dict
+
+
 @runtime_checkable
 class LLMAdapter(Protocol):
     async def generate_stream(

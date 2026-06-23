@@ -6,7 +6,8 @@ Usage:
     uv run python scripts/metrics.py --path logs/session.jsonl
 
 Reads the JSONL written by `electronbot_es.core.obs.log_turn` and prints a
-table with: turns per tier, p50/p95 of wake_to_first_audio and
+table with: turns per tier, p50/p95 of speech_end->first_audio (el campo
+    wire se llama wake_to_first_audio por compat v1) and
 tts_first_chunk, average tokens, average cost, total cost.
 """
 
@@ -69,7 +70,7 @@ def main() -> None:
     total_turns = len(records)
 
     print(f"\n=== ElectronBot-ES metrics — {total_turns} turns ===\n")
-    header = f"{'tier':<4} {'n':>4} {'%':>5}  {'first_audio p50':>16} {'p95':>7}  {'tts_first p50':>14} {'p95':>7}  {'avg_cost':>10} {'total':>10}"
+    header = f"{'tier':<4} {'n':>4} {'%':>5}  {'spEnd->aud p50':>16} {'p95':>7}  {'tts_first p50':>14} {'p95':>7}  {'avg_cost':>10} {'total':>10}"
     print(header)
     print("-" * len(header))
 

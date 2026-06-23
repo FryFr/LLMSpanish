@@ -1,17 +1,17 @@
 """MockESP32 — Python client simulating ESP32-S3 device over WS v1.
 
-Day 4 phase 2: manual keyboard barge-in.
-
 States:
-    IDLE       : waiting for user to press ENTER to start talking
-    RECORDING  : mic frames streamed as binary to the server
-    SPEAKING   : TTS playing back; pressing ENTER cancels the turn
+    IDLE       : waiting for a wake word or ENTER to start a turn
+    RECORDING  : mic frames streamed as binary to the server; recording
+                 auto-stops on silence via SilenceEndpointer (client-side
+                 VAD), simulating the ESP32-S3's on-device endpointing.
+                 On Windows, ENTER or SPACE can also force-stop recording.
+    SPEAKING   : TTS playing back; barge-in cancels the turn.
 
-Barge-in note: the mock uses a manual ENTER key as the cancel trigger.
-The real ESP32-S3 will use ESP-SR AFE (hardware AEC + VAD + noise
-suppression) to detect user voice over the TTS and fire tts.cancel
-automatically. Running VAD on a laptop condenser mic without AEC was
-unreliable — the real device has the right hardware for the job.
+Barge-in note: in this mock, barge-in is triggered by a manual keypress
+(Windows-only). The real ESP32-S3 will use ESP-SR AFE (hardware AEC + VAD)
+to detect user voice over TTS and fire tts.cancel automatically — AEC
+requires dedicated hardware, so that path is not emulated here.
 
 Usage:
     uv run python -m electronbot_es.mock.mock_esp32

@@ -116,7 +116,7 @@ def test_stt_partial_and_final():
 
 
 def test_llm_status_states():
-    for state in ("thinking", "generating", "done"):
+    for state in ("thinking", "generating", "done", "searching"):
         msg = server_adapter.validate_python(
             {"type": "llm.status", "turn_id": "t1", "state": state}
         )

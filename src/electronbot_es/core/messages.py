@@ -101,7 +101,7 @@ class SttFinal(BaseModel):
 class LlmStatus(BaseModel):
     type: Literal["llm.status"] = "llm.status"
     turn_id: str
-    state: Literal["thinking", "generating", "done"]
+    state: Literal["thinking", "generating", "done", "searching"]
 
 
 class TtsStart(BaseModel):

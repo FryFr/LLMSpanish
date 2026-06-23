@@ -23,8 +23,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from pydantic import TypeAdapter, ValidationError
 
 from electronbot_es.adapters.llm_groq import GroqLLM
+from electronbot_es.adapters.search_tavily import TavilySearch
 from electronbot_es.adapters.stt_deepgram import DeepgramSTT
 from electronbot_es.adapters.tts_cartesia import CartesiaTTS
+from electronbot_es.core.agentic import SearchAugmentedResponder
 from electronbot_es.core.config import get_settings
 from electronbot_es.core.messages import (
     ClientMessage,
@@ -105,6 +107,13 @@ def create_app() -> FastAPI:
         llm = GroqLLM(api_key=settings.groq_api_key)
         tts = CartesiaTTS(api_key=settings.cartesia_api_key, sample_rate=16000)
 
+        search: Optional[TavilySearch] = None
+        responder: Optional[SearchAugmentedResponder] = None
+        if settings.tavily_api_key:
+            search = TavilySearch(api_key=settings.tavily_api_key)
+            responder = SearchAugmentedResponder(llm=llm, search=search)
+            logger.info("session %s: web search enabled (tavily)", session_id)
+
         # Pre-warm Cartesia WS in parallel so the first T2/T3 turn doesn't
         # eat the ~800ms handshake cost.
         asyncio.create_task(tts.prewarm())
@@ -119,6 +128,7 @@ def create_app() -> FastAPI:
                 stt="deepgram", llm="groq", tts="cartesia"
             ),
             router=router,
+            responder=responder,
             tts_sample_rate=16000,
             tts_source="cartesia",
         )
@@ -199,6 +209,8 @@ def create_app() -> FastAPI:
             await stt.aclose()
             await llm.aclose()
             await tts.aclose()
+            if search is not None:
+                await search.aclose()
             try:
                 await ws.close()
             except Exception:

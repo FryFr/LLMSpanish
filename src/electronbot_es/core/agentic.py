@@ -9,6 +9,7 @@ resultado y streamea la respuesta final.
 from __future__ import annotations
 
 import json
+import logging
 from typing import AsyncIterator, Awaitable, Callable, Optional, Protocol
 
 from electronbot_es.core.protocols import (
@@ -18,6 +19,7 @@ from electronbot_es.core.protocols import (
     ToolCallRequest,
 )
 
+logger = logging.getLogger(__name__)
 
 SEARCH_TOOL = {
     "type": "function",
@@ -42,7 +44,9 @@ _SEARCH_UNAVAILABLE = "La búsqueda no está disponible ahora mismo."
 
 
 class ToolStreamingLLM(Protocol):
-    def stream_with_tools(self, messages: list[dict], tools: list[dict]) -> AsyncIterator: ...
+    def stream_with_tools(
+        self, messages: list[dict], tools: list[dict]
+    ) -> AsyncIterator[TextDelta | ToolCallRequest]: ...
 
 
 class SearchAugmentedResponder:
@@ -64,21 +68,31 @@ class SearchAugmentedResponder:
             if isinstance(ev, TextDelta):
                 yielded_text = True
                 yield ev.text
-            elif isinstance(ev, ToolCallRequest) and not yielded_text:
+            elif isinstance(ev, ToolCallRequest):
+                if yielded_text:
+                    # Groq no mezcla texto y tool-call en un mismo stream; si
+                    # pasara, ignoramos la búsqueda y dejamos el texto ya emitido.
+                    logger.warning("tool call tras texto ya emitido; búsqueda ignorada")
+                    continue
                 tool_req = ev
                 break
 
         if tool_req is None:
             return  # el modelo respondió directo, sin búsqueda
 
-        if on_search is not None:
-            await on_search()
-
-        query = tool_req.arguments.get("query", "")
-        try:
-            result = await self._search.search(query)
-        except Exception:
+        query = tool_req.arguments.get("query", "").strip()
+        if not query:
+            # Tool-call malformada (sin query): no gastamos una búsqueda vacía.
+            logger.warning("buscar_web sin query; salteando búsqueda")
             result = _SEARCH_UNAVAILABLE
+        else:
+            if on_search is not None:
+                await on_search()
+            try:
+                result = await self._search.search(query)
+            except Exception:
+                logger.warning("búsqueda falló; usando respuesta del modelo")
+                result = _SEARCH_UNAVAILABLE
 
         raw.append(
             {

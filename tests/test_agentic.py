@@ -75,6 +75,13 @@ def test_search_then_final_answer() -> None:
         m.get("role") == "tool" and "20°C" in (m.get("content") or "")
         for m in second_msgs
     )
+    assistant_msgs = [
+        m for m in second_msgs if m.get("role") == "assistant" and m.get("tool_calls")
+    ]
+    assert assistant_msgs, "falta el mensaje assistant con tool_calls"
+    tc = assistant_msgs[-1]["tool_calls"][0]
+    assert tc["id"] == "c1"
+    assert tc["function"]["name"] == "buscar_web"
 
 
 def test_search_failure_still_answers() -> None:
@@ -113,3 +120,20 @@ def test_on_search_callback_fires() -> None:
 
     asyncio.run(run())
     assert fired == [True]
+
+
+def test_missing_query_skips_search() -> None:
+    # Tool-call sin "query": no debe llamar a search; usa el sentinel y responde.
+    llm = FakeToolLLM([
+        [ToolCallRequest(id="c1", name="buscar_web", arguments={})],
+        [TextDelta(text="No pude buscar eso.")],
+    ])
+    search = FakeSearch()
+    out = _collect(SearchAugmentedResponder(llm=llm, search=search).respond_stream(MSGS))
+    assert "".join(out) == "No pude buscar eso."
+    assert search.queries == []
+    second_msgs = llm.calls[1][0]
+    assert any(
+        m.get("role") == "tool" and "no está disponible" in (m.get("content") or "").lower()
+        for m in second_msgs
+    )

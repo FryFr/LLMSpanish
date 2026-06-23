@@ -207,10 +207,10 @@ def create_app() -> FastAPI:
                 except (asyncio.CancelledError, Exception):
                     pass
             await stt.aclose()
-            await llm.aclose()
             await tts.aclose()
             if search is not None:
                 await search.aclose()
+            await llm.aclose()
             try:
                 await ws.close()
             except Exception:

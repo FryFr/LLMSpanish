@@ -83,3 +83,63 @@ def test_wrong_size_frame_is_ignored() -> None:
     # el VAD inyectado diría "voz" si llegara a consultarse.
     for _ in range(6):
         assert ep.process(bad) is False
+
+
+# ---------- warmup / lead-in (fix del transitorio del wake word) ----------
+
+
+def test_without_warmup_wake_transient_causes_false_endpoint() -> None:
+    # Reproduce el bug: el transitorio del wake (cola de voz + filler) arma el
+    # endpointer y la pausa posterior dispara un corte ANTES de que el usuario
+    # diga su comando.
+    transient = [True] * 15  # ~300ms de "voz" del arranque → alcanza min_speech
+    pause = [False] * 35  # 700ms de pausa antes de hablar
+    ep = SilenceEndpointer(
+        vad=FakeVAD(transient + pause),
+        frame_ms=20, start_delay_ms=0, min_speech_ms=300,
+        hangover_ms=700, max_utterance_ms=20000,
+    )
+    out = [ep.process(FRAME) for _ in transient + pause]
+    assert True in out  # bug presente sin warmup
+
+
+def test_warmup_prevents_false_endpoint_from_transient() -> None:
+    # Con warmup que cubre el transitorio, ese mismo arranque NO debe cortar.
+    transient = [True] * 15
+    pause = [False] * 35
+    ep = SilenceEndpointer(
+        vad=FakeVAD(transient + pause),
+        frame_ms=20, start_delay_ms=400, min_speech_ms=300,
+        hangover_ms=700, max_utterance_ms=20000,
+    )
+    out = [ep.process(FRAME) for _ in transient + pause]
+    assert True not in out  # warmup ignora el transitorio → no corta
+
+
+def test_warmup_then_real_speech_endpoints() -> None:
+    # Tras el warmup, voz real + silencio sí debe cortar normalmente.
+    # El warmup NO consulta el VAD, así que el script sólo cubre los frames
+    # post-warmup (la voz real + el silencio); los frames de warmup se cuentan
+    # aparte.
+    speech = [True] * 15 + [False] * 35  # comando real + silencio
+    ep = SilenceEndpointer(
+        vad=FakeVAD(speech),
+        frame_ms=20, start_delay_ms=200, min_speech_ms=300,
+        hangover_ms=700, max_utterance_ms=20000,
+    )
+    warmup_frames = 200 // 20  # 10 frames de lead-in (ignorados, sin VAD)
+    out = [ep.process(FRAME) for _ in range(warmup_frames + len(speech))]
+    assert out[-1] is True
+
+
+def test_speaking_property_tracks_detection() -> None:
+    # `speaking` queda False hasta que se detecta voz real (para el aviso visual).
+    ep = SilenceEndpointer(
+        vad=FakeVAD([False, False] + [True] * 15),
+        frame_ms=20, min_speech_ms=300, hangover_ms=700, max_utterance_ms=20000,
+    )
+    ep.process(FRAME)
+    assert ep.speaking is False  # silencio inicial: aún no oyó
+    for _ in range(16):
+        ep.process(FRAME)
+    assert ep.speaking is True  # ya acumuló los 15 frames de voz

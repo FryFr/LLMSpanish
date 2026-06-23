@@ -8,6 +8,11 @@ El VAD es inyectable: por defecto construye `webrtcvad.Vad`, pero los tests
 pasan un fake determinístico para probar la lógica en aislamiento.
 
 Guardas:
+- start_delay_ms : ventana de lead-in al inicio del turno donde NO se evalúa el
+                   corte. Ignora el transitorio post-wake (cola de la palabra de
+                   activación + ack filler que se cuela por el parlante sin AEC),
+                   que si no armaría el endpointer y cortaría en la pausa previa
+                   al comando real. Los frames igual se streamean al servidor.
 - min_speech_ms : voz mínima acumulada antes de permitir un corte (mata clics
                   y el silencio inicial).
 - hangover_ms   : silencio CONTINUO que dispara el corte (el "feeling").
@@ -37,6 +42,7 @@ class SilenceEndpointer:
         aggressiveness: int = 2,
         sample_rate: int = 16000,
         frame_ms: int = 20,
+        start_delay_ms: int = 0,
         min_speech_ms: int = 300,
         hangover_ms: int = 700,
         max_utterance_ms: int = 15000,
@@ -49,6 +55,7 @@ class SilenceEndpointer:
         self._vad = vad
         self._sample_rate = sample_rate
         self._frame_bytes = sample_rate * frame_ms // 1000 * 2
+        self._warmup_frames = start_delay_ms // frame_ms
         self._min_speech_frames = max(1, min_speech_ms // frame_ms)
         self._hangover_frames = max(1, hangover_ms // frame_ms)
         self._max_frames = max(1, max_utterance_ms // frame_ms)
@@ -59,6 +66,12 @@ class SilenceEndpointer:
         self._speech_frames = 0
         self._silence_run = 0
         self._total_frames = 0
+        self._warmup_seen = 0
+
+    @property
+    def speaking(self) -> bool:
+        """True una vez que se detectó voz real (para feedback visual)."""
+        return self._state in (_State.SPEAKING, _State.ENDPOINTED)
 
     def process(self, frame: bytes) -> bool:
         """Devuelve True cuando se alcanzó el fin de habla. Idempotente tras True."""
@@ -67,6 +80,12 @@ class SilenceEndpointer:
         # Frame de tamaño inesperado: ignorar para el VAD (webrtcvad exige
         # exactamente 10/20/30ms), no romper el turno.
         if len(frame) != self._frame_bytes:
+            return False
+
+        # Lead-in: ignorar el transitorio del arranque (cola del wake + filler).
+        # Los frames ya se streamean al servidor; sólo no evaluamos el corte.
+        if self._warmup_seen < self._warmup_frames:
+            self._warmup_seen += 1
             return False
 
         self._total_frames += 1

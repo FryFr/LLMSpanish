@@ -53,3 +53,10 @@ def test_raises_on_http_error() -> None:
     s = TavilySearch(api_key="x", client=_client(handler))
     with pytest.raises(httpx.HTTPStatusError):
         _run(s.search("x"))
+
+
+def test_aclose_does_not_close_injected_client() -> None:
+    inner = _client(lambda r: httpx.Response(200, json={}))
+    s = TavilySearch(api_key="x", client=inner)
+    _run(s.aclose())
+    assert inner.is_closed is False

@@ -35,6 +35,8 @@ class TavilySearch:
         max_results: int = 3,
         client: Optional[httpx.AsyncClient] = None,
     ) -> None:
+        """timeout_s y max_results aplican al cliente interno; si se inyecta un
+        `client` ya configurado, timeout_s no tiene efecto."""
         self._api_key = api_key
         self._max_results = max_results
         self._client = client or httpx.AsyncClient(timeout=timeout_s)

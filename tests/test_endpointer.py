@@ -79,8 +79,7 @@ def test_wrong_size_frame_is_ignored() -> None:
         frame_ms=20, min_speech_ms=60, hangover_ms=100, max_utterance_ms=10000,
     )
     bad = b"\x00" * 100  # 640 esperados → tamaño inválido
-    assert ep.process(bad) is False
-    # Tras varios frames inválidos, un frame válido recién empieza a contar voz:
-    # no debe haber saltado a SPEAKING por los inválidos.
-    for _ in range(5):
+    # Frames inválidos se descartan: nunca cortan ni avanzan el estado, aunque
+    # el VAD inyectado diría "voz" si llegara a consultarse.
+    for _ in range(6):
         assert ep.process(bad) is False

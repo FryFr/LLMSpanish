@@ -171,6 +171,7 @@ async def run_session(
     wake_enabled: bool = False,
     silence_ms: int = 700,
     vad_aggressiveness: int = 2,
+    start_delay_ms: int = 500,
 ) -> None:
     print(f"Connecting to {uri} ...")
     async with websockets.connect(uri, max_size=None) as ws:
@@ -225,6 +226,7 @@ async def run_session(
             aggressiveness=vad_aggressiveness,
             sample_rate=SAMPLE_RATE,
             frame_ms=FRAME_MS,
+            start_delay_ms=start_delay_ms,
             hangover_ms=silence_ms,
         )
 
@@ -288,6 +290,7 @@ async def run_session(
 
                 async def pump_mic():
                     nonlocal speech_end_at
+                    heard = False
                     while mic.recording:
                         try:
                             frame = await asyncio.wait_for(
@@ -301,7 +304,11 @@ async def run_session(
                                     mic.recording = False
                             continue
                         await ws.send(frame)
-                        if endpointer.process(frame):
+                        endpointed = endpointer.process(frame)
+                        if not heard and endpointer.speaking:
+                            heard = True
+                            print("  [oí voz — grabando tu comando]")
+                        if endpointed:
                             speech_end_at = (time.perf_counter() - turn_start) * 1000
                             mic.recording = False
                             print(f"[{speech_end_at:7.0f}ms] endpoint (silence)")
@@ -444,6 +451,13 @@ def main() -> None:
         choices=[0, 1, 2, 3],
         help="Agresividad del webrtcvad (0=permisivo, 3=estricto)",
     )
+    p.add_argument(
+        "--start-delay-ms",
+        type=int,
+        default=500,
+        help="Lead-in (ms) tras el wake word donde no se evalúa el corte; "
+        "ignora la cola del wake + el ack filler",
+    )
     args = p.parse_args()
     uri = f"ws://{args.host}:{args.port}/ws/voice"
     try:
@@ -454,6 +468,7 @@ def main() -> None:
                 wake_enabled=args.wake_word,
                 silence_ms=args.silence_ms,
                 vad_aggressiveness=args.vad_aggressiveness,
+                start_delay_ms=args.start_delay_ms,
             )
         )
     except KeyboardInterrupt:
